@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="FinControl — Controle suas finanças com inteligência. Gerencie gastos, acompanhe saldos e visualize seus dados financeiros.">
+  <title>FinControl — Login</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+</head>
+<body>
+  <!-- Page Loader -->
+  <div class="page-loader" id="page-loader">
+    <div class="loading-spinner" style="width:40px;height:40px;border-width:3px;"></div>
+  </div>
+
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <h1>💰 FinControl</h1>
+        <p>Controle suas finanças com inteligência</p>
+      </div>
+
+      <!-- Messages -->
+      <div class="msg-error" id="error-message"></div>
+      <div class="msg-success" id="success-message"></div>
+
+      <form id="auth-form" autocomplete="off">
+        <!-- Nome (only signup) -->
+        <div class="form-group hidden" id="nome-group">
+          <label for="nome-input">Nome</label>
+          <input type="text" id="nome-input" placeholder="Seu nome">
+        </div>
+
+        <div class="form-group">
+          <label for="email-input">E-mail</label>
+          <input type="email" id="email-input" placeholder="seu@email.com" required>
+        </div>
+
+        <div class="form-group">
+          <label for="password-input">Senha</label>
+          <input type="password" id="password-input" placeholder="Mínimo 6 caracteres" required minlength="6">
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="submit-btn">
+          Entrar
+        </button>
+      </form>
+
+      <div class="toggle-link">
+        <span id="toggle-text">Não tem conta?</span>
+        <a id="toggle-mode-btn">Criar conta</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase/client.js"></script>
+  <script src="js/auth.js"></script>
+</body>
+</html>
