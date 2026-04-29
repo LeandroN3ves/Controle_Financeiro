@@ -167,100 +167,81 @@ async function updateChartBarras(userId, currentDate) {
   });
 }
 
-// ===== 3. Doughnut Chart — Sobra (Saldo Total - Gastos) =====
+// ===== 3. Bar Chart — Sobra por Carteira =====
 function updateChartSobra(gastos) {
   const ctx = document.getElementById('chart-linha').getContext('2d');
   if (chartLinha) chartLinha.destroy();
 
-  const saldoTotal = carteirasData.reduce((s, c) => s + Number(c.saldo), 0);
-  const totalPendente = gastos.filter(g => !g.pago).reduce((s, g) => s + Number(g.valor), 0);
-  const sobra = saldoTotal - totalPendente;
-
-  const isPositive = sobra >= 0;
-  const sobraAbs = Math.abs(sobra);
-
-  // If no data
-  if (saldoTotal === 0 && totalPendente === 0) {
+  if (carteirasData.length === 0) {
     chartLinha = new Chart(ctx, {
-      type: 'doughnut',
+      type: 'bar',
       data: {
-        labels: ['Sem dados'],
-        datasets: [{ data: [1], backgroundColor: ['rgba(255,255,255,0.05)'], borderWidth: 0 }]
+        labels: ['Sem carteiras'],
+        datasets: [{ data: [0], backgroundColor: 'rgba(255,255,255,0.05)' }]
       },
       options: {
-        responsive: true, maintainAspectRatio: true, cutout: '70%',
-        plugins: { legend: { display: false }, tooltip: { enabled: false } }
+        responsive: true, maintainAspectRatio: true, indexAxis: 'y',
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: {
+          x: { display: false },
+          y: { grid: { display: false } }
+        }
       }
     });
     return;
   }
 
-  const labels = isPositive
-    ? ['Sobra', 'Pendente']
-    : ['Gastos excedentes', 'Saldo disponível'];
-
-  const data = isPositive
-    ? [sobra, totalPendente]
-    : [sobraAbs, Math.max(saldoTotal, 0)];
-
-  const bgColors = isPositive
-    ? ['rgba(0,214,143,0.7)', 'rgba(124,92,255,0.3)']
-    : ['rgba(255,77,106,0.7)', 'rgba(124,92,255,0.3)'];
-
-  const borderColors = isPositive
-    ? ['#00d68f', 'rgba(124,92,255,0.5)']
-    : ['#ff4d6a', 'rgba(124,92,255,0.5)'];
-
-  // Center text plugin
-  const centerTextPlugin = {
-    id: 'centerText',
-    afterDraw(chart) {
-      const { ctx: c, width, height } = chart;
-      c.save();
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      const centerX = width / 2;
-      const centerY = height / 2 - 10;
-
-      // Label
-      c.font = '500 12px Inter, sans-serif';
-      c.fillStyle = '#7a7a95';
-      c.fillText(isPositive ? 'Sobra' : 'Excesso', centerX, centerY - 10);
-
-      // Value
-      c.font = 'bold 18px Inter, sans-serif';
-      c.fillStyle = isPositive ? '#00d68f' : '#ff4d6a';
-      c.fillText((isPositive ? '' : '-') + formatCurrency(sobraAbs), centerX, centerY + 14);
-
-      c.restore();
+  // Calculate pending per wallet
+  const pendentePorCarteira = {};
+  gastos.filter(g => !g.pago).forEach(g => {
+    if (g.carteira_id) {
+      pendentePorCarteira[g.carteira_id] = (pendentePorCarteira[g.carteira_id] || 0) + Number(g.valor);
     }
-  };
+  });
+
+  const labels = carteirasData.map(c => c.nome);
+  const sobraValues = carteirasData.map(c => {
+    const pendente = pendentePorCarteira[c.id] || 0;
+    return Number(c.saldo) - pendente;
+  });
+  const bgColors = sobraValues.map((v, i) =>
+    v >= 0 ? carteirasData[i].cor + '66' : 'rgba(255,77,106,0.4)'
+  );
+  const borderColors = sobraValues.map((v, i) =>
+    v >= 0 ? carteirasData[i].cor : '#ff4d6a'
+  );
 
   chartLinha = new Chart(ctx, {
-    type: 'doughnut',
+    type: 'bar',
     data: {
       labels,
       datasets: [{
-        data,
+        label: 'Sobra',
+        data: sobraValues,
         backgroundColor: bgColors,
         borderColor: borderColors,
         borderWidth: 2,
-        hoverOffset: 6,
+        borderRadius: 8,
+        borderSkipped: false,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      cutout: '70%',
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { padding: 16, usePointStyle: true, pointStyleWidth: 10 }
-        },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => ` ${ctx.label}: ${formatCurrency(ctx.raw)}`
+      indexAxis: 'y',
+      scales: {
+        x: {
+          ticks: {
+            callback: (v) => 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0 })
           },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        },
+        y: { grid: { display: false } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: (ctx) => ` Sobra: ${formatCurrency(ctx.raw)}` },
           backgroundColor: 'rgba(17,17,40,0.95)',
           titleColor: '#eaeaf0',
           bodyColor: '#eaeaf0',
@@ -270,8 +251,8 @@ function updateChartSobra(gastos) {
           cornerRadius: 8,
         }
       }
-    },
-    plugins: [centerTextPlugin]
+    }
   });
 }
+
 
