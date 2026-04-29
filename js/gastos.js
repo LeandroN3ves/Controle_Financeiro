@@ -147,12 +147,37 @@ modalForm.addEventListener('submit', async (e) => {
 // ===== Toggle Paid =====
 async function togglePago(id, currentStatus) {
   try {
+    const gasto = gastosData.find(g => g.id === id);
+    if (!gasto) return;
+
+    const novoPago = !currentStatus;
+
+    // Update gasto status
     const { error } = await supabaseClient
       .from('gastos')
-      .update({ pago: !currentStatus })
+      .update({ pago: novoPago })
       .eq('id', id);
     if (error) throw error;
-    showToast(!currentStatus ? 'Marcado como pago!' : 'Marcado como pendente');
+
+    // Update wallet balance if linked to a carteira
+    if (gasto.carteira_id) {
+      const carteira = getCarteiraById(gasto.carteira_id);
+      if (carteira) {
+        const valor = Number(gasto.valor);
+        const novoSaldo = novoPago
+          ? Number(carteira.saldo) - valor   // Pago → desconta
+          : Number(carteira.saldo) + valor;  // Despago → devolve
+
+        const { error: walletErr } = await supabaseClient
+          .from('carteiras')
+          .update({ saldo: novoSaldo })
+          .eq('id', carteira.id);
+        if (walletErr) throw walletErr;
+      }
+    }
+
+    showToast(novoPago ? 'Marcado como pago!' : 'Marcado como pendente');
+    await loadCarteiras();
     await loadDashboard();
   } catch (err) {
     console.error('Erro ao atualizar status:', err);

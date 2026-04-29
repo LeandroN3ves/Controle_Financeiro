@@ -15,7 +15,7 @@ Chart.defaults.font.family = "'Inter', sans-serif";
 async function updateAllCharts(gastos, userId, currentDate) {
   updateChartRosca(gastos);
   await updateChartBarras(userId, currentDate);
-  await updateChartLinha(userId);
+  updateChartSobra(gastos);
 }
 
 // ===== 1. Donut Chart — Gastos por Carteira =====
@@ -167,70 +167,100 @@ async function updateChartBarras(userId, currentDate) {
   });
 }
 
-// ===== 3. Line Chart — Evolução do Saldo (soma das carteiras) =====
-async function updateChartLinha(userId) {
-  // For line chart, show carteiras current balances as a bar comparison
-  const labels = carteirasData.map(c => c.nome);
-  const values = carteirasData.map(c => Number(c.saldo));
-  const colors = carteirasData.map(c => c.cor);
-
+// ===== 3. Doughnut Chart — Sobra (Saldo Total - Gastos) =====
+function updateChartSobra(gastos) {
   const ctx = document.getElementById('chart-linha').getContext('2d');
   if (chartLinha) chartLinha.destroy();
 
-  const hasData = carteirasData.length > 0;
+  const saldoTotal = carteirasData.reduce((s, c) => s + Number(c.saldo), 0);
+  const totalGastos = gastos.reduce((s, g) => s + Number(g.valor), 0);
+  const sobra = saldoTotal - totalGastos;
 
-  if (!hasData) {
+  const isPositive = sobra >= 0;
+  const sobraAbs = Math.abs(sobra);
+
+  // If no data
+  if (saldoTotal === 0 && totalGastos === 0) {
     chartLinha = new Chart(ctx, {
-      type: 'bar',
+      type: 'doughnut',
       data: {
-        labels: ['Sem carteiras'],
-        datasets: [{ data: [0], backgroundColor: 'rgba(255,255,255,0.05)' }]
+        labels: ['Sem dados'],
+        datasets: [{ data: [1], backgroundColor: ['rgba(255,255,255,0.05)'], borderWidth: 0 }]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } },
-          x: { grid: { display: false } }
-        }
+        responsive: true, maintainAspectRatio: true, cutout: '70%',
+        plugins: { legend: { display: false }, tooltip: { enabled: false } }
       }
     });
     return;
   }
 
+  const labels = isPositive
+    ? ['Sobra', 'Comprometido']
+    : ['Gastos excedentes', 'Saldo disponível'];
+
+  const data = isPositive
+    ? [sobra, totalGastos]
+    : [sobraAbs, Math.max(saldoTotal, 0)];
+
+  const bgColors = isPositive
+    ? ['rgba(0,214,143,0.7)', 'rgba(124,92,255,0.3)']
+    : ['rgba(255,77,106,0.7)', 'rgba(124,92,255,0.3)'];
+
+  const borderColors = isPositive
+    ? ['#00d68f', 'rgba(124,92,255,0.5)']
+    : ['#ff4d6a', 'rgba(124,92,255,0.5)'];
+
+  // Center text plugin
+  const centerTextPlugin = {
+    id: 'centerText',
+    afterDraw(chart) {
+      const { ctx: c, width, height } = chart;
+      c.save();
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      const centerX = width / 2;
+      const centerY = height / 2 - 10;
+
+      // Label
+      c.font = '500 12px Inter, sans-serif';
+      c.fillStyle = '#7a7a95';
+      c.fillText(isPositive ? 'Sobra' : 'Excesso', centerX, centerY - 10);
+
+      // Value
+      c.font = 'bold 18px Inter, sans-serif';
+      c.fillStyle = isPositive ? '#00d68f' : '#ff4d6a';
+      c.fillText((isPositive ? '' : '-') + formatCurrency(sobraAbs), centerX, centerY + 14);
+
+      c.restore();
+    }
+  };
+
   chartLinha = new Chart(ctx, {
-    type: 'bar',
+    type: 'doughnut',
     data: {
       labels,
       datasets: [{
-        label: 'Saldo',
-        data: values,
-        backgroundColor: colors.map(c => c + '66'),
-        borderColor: colors,
+        data,
+        backgroundColor: bgColors,
+        borderColor: borderColors,
         borderWidth: 2,
-        borderRadius: 8,
-        borderSkipped: false,
+        hoverOffset: 6,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      indexAxis: 'y',
-      scales: {
-        x: {
-          beginAtZero: true,
-          ticks: {
-            callback: (v) => 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0 })
-          },
-          grid: { color: 'rgba(255,255,255,0.04)' }
-        },
-        y: { grid: { display: false } }
-      },
+      cutout: '70%',
       plugins: {
-        legend: { display: false },
+        legend: {
+          position: 'bottom',
+          labels: { padding: 16, usePointStyle: true, pointStyleWidth: 10 }
+        },
         tooltip: {
-          callbacks: { label: (ctx) => ` Saldo: ${formatCurrency(ctx.raw)}` },
+          callbacks: {
+            label: (ctx) => ` ${ctx.label}: ${formatCurrency(ctx.raw)}`
+          },
           backgroundColor: 'rgba(17,17,40,0.95)',
           titleColor: '#eaeaf0',
           bodyColor: '#eaeaf0',
@@ -240,6 +270,8 @@ async function updateChartLinha(userId) {
           cornerRadius: 8,
         }
       }
-    }
+    },
+    plugins: [centerTextPlugin]
   });
 }
+
