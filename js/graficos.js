@@ -173,14 +173,14 @@ function updateChartSobra(gastos) {
   if (chartLinha) chartLinha.destroy();
 
   const saldoTotal = carteirasData.reduce((s, c) => s + Number(c.saldo), 0);
-  const totalGastos = gastos.reduce((s, g) => s + Number(g.valor), 0);
-  const sobra = saldoTotal - totalGastos;
+  const totalPendente = gastos.filter(g => !g.pago).reduce((s, g) => s + Number(g.valor), 0);
+  const sobra = saldoTotal - totalPendente;
 
   const isPositive = sobra >= 0;
   const sobraAbs = Math.abs(sobra);
 
   // If no data
-  if (saldoTotal === 0 && totalGastos === 0) {
+  if (saldoTotal === 0 && totalPendente === 0) {
     chartLinha = new Chart(ctx, {
       type: 'doughnut',
       data: {
@@ -196,11 +196,11 @@ function updateChartSobra(gastos) {
   }
 
   const labels = isPositive
-    ? ['Sobra', 'Comprometido']
+    ? ['Sobra', 'Pendente']
     : ['Gastos excedentes', 'Saldo disponível'];
 
   const data = isPositive
-    ? [sobra, totalGastos]
+    ? [sobra, totalPendente]
     : [sobraAbs, Math.max(saldoTotal, 0)];
 
   const bgColors = isPositive
