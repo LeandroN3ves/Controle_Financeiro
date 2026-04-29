@@ -15,31 +15,52 @@ Chart.defaults.font.family = "'Inter', sans-serif";
 async function updateAllCharts(gastos, userId, currentDate) {
   updateChartRosca(gastos);
   await updateChartBarras(userId, currentDate);
-  await updateChartLinha(userId, currentDate);
+  await updateChartLinha(userId);
 }
 
-// ===== 1. Donut Chart — Pago vs A Pagar =====
+// ===== 1. Donut Chart — Gastos por Carteira =====
 function updateChartRosca(gastos) {
-  const totalPago = gastos.filter(g => g.pago).reduce((s, g) => s + Number(g.valor), 0);
-  const totalPendente = gastos.filter(g => !g.pago).reduce((s, g) => s + Number(g.valor), 0);
-
   const ctx = document.getElementById('chart-rosca').getContext('2d');
-
   if (chartRosca) chartRosca.destroy();
 
-  const hasData = totalPago > 0 || totalPendente > 0;
+  // Group expenses by carteira
+  const byCarteira = {};
+  let semCarteira = 0;
+
+  gastos.forEach(g => {
+    if (g.carteira_id) {
+      const c = getCarteiraById(g.carteira_id);
+      if (c) {
+        if (!byCarteira[c.id]) {
+          byCarteira[c.id] = { nome: c.nome, cor: c.cor, total: 0 };
+        }
+        byCarteira[c.id].total += Number(g.valor);
+      } else {
+        semCarteira += Number(g.valor);
+      }
+    } else {
+      semCarteira += Number(g.valor);
+    }
+  });
+
+  const entries = Object.values(byCarteira);
+  if (semCarteira > 0) {
+    entries.push({ nome: 'Sem carteira', cor: '#55556a', total: semCarteira });
+  }
+
+  const hasData = entries.length > 0;
 
   chartRosca = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: ['Pago', 'A Pagar'],
+      labels: hasData ? entries.map(e => e.nome) : ['Sem dados'],
       datasets: [{
-        data: hasData ? [totalPago, totalPendente] : [1],
+        data: hasData ? entries.map(e => e.total) : [1],
         backgroundColor: hasData
-          ? ['#00d68f', '#ffaa00']
+          ? entries.map(e => e.cor + 'AA')
           : ['rgba(255,255,255,0.05)'],
         borderColor: hasData
-          ? ['rgba(0,214,143,0.3)', 'rgba(255,170,0,0.3)']
+          ? entries.map(e => e.cor)
           : ['rgba(255,255,255,0.1)'],
         borderWidth: 2,
         hoverOffset: 6,
@@ -57,10 +78,7 @@ function updateChartRosca(gastos) {
         tooltip: {
           enabled: hasData,
           callbacks: {
-            label: (ctx) => {
-              const val = Number(ctx.raw);
-              return ` ${ctx.label}: ${formatCurrency(val)}`;
-            }
+            label: (ctx) => ` ${ctx.label}: ${formatCurrency(ctx.raw)}`
           },
           backgroundColor: 'rgba(17,17,40,0.95)',
           titleColor: '#eaeaf0',
@@ -90,7 +108,6 @@ async function updateChartBarras(userId, currentDate) {
     labels.push(`${MONTH_SHORT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`);
   }
 
-  // Fetch totals for each month
   for (const mes of months) {
     const { data } = await supabaseClient
       .from('gastos')
@@ -131,16 +148,12 @@ async function updateChartBarras(userId, currentDate) {
           },
           grid: { color: 'rgba(255,255,255,0.04)' }
         },
-        x: {
-          grid: { display: false }
-        }
+        x: { grid: { display: false } }
       },
       plugins: {
         legend: { display: false },
         tooltip: {
-          callbacks: {
-            label: (ctx) => ` ${formatCurrency(ctx.raw)}`
-          },
+          callbacks: { label: (ctx) => ` ${formatCurrency(ctx.raw)}` },
           backgroundColor: 'rgba(17,17,40,0.95)',
           titleColor: '#eaeaf0',
           bodyColor: '#eaeaf0',
@@ -154,75 +167,70 @@ async function updateChartBarras(userId, currentDate) {
   });
 }
 
-// ===== 3. Line Chart — Evolução do Saldo =====
-async function updateChartLinha(userId, currentDate) {
-  const labels = [];
-  const values = [];
-
-  const MONTH_SHORT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-    const mesRef = getMesRef(d);
-    labels.push(`${MONTH_SHORT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`);
-
-    const { data } = await supabaseClient
-      .from('saldo')
-      .select('valor_disponivel')
-      .eq('usuario_id', userId)
-      .eq('mes_ref', mesRef)
-      .single();
-
-    values.push(data ? Number(data.valor_disponivel) : 0);
-  }
+// ===== 3. Line Chart — Evolução do Saldo (soma das carteiras) =====
+async function updateChartLinha(userId) {
+  // For line chart, show carteiras current balances as a bar comparison
+  const labels = carteirasData.map(c => c.nome);
+  const values = carteirasData.map(c => Number(c.saldo));
+  const colors = carteirasData.map(c => c.cor);
 
   const ctx = document.getElementById('chart-linha').getContext('2d');
   if (chartLinha) chartLinha.destroy();
 
-  // Gradient fill
-  const gradient = ctx.createLinearGradient(0, 0, 0, 280);
-  gradient.addColorStop(0, 'rgba(0,214,143,0.3)');
-  gradient.addColorStop(1, 'rgba(0,214,143,0)');
+  const hasData = carteirasData.length > 0;
+
+  if (!hasData) {
+    chartLinha = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Sem carteiras'],
+        datasets: [{ data: [0], backgroundColor: 'rgba(255,255,255,0.05)' }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+    return;
+  }
 
   chartLinha = new Chart(ctx, {
-    type: 'line',
+    type: 'bar',
     data: {
       labels,
       datasets: [{
         label: 'Saldo',
         data: values,
-        borderColor: '#00d68f',
-        backgroundColor: gradient,
-        borderWidth: 3,
-        fill: true,
-        tension: 0.4,
-        pointBackgroundColor: '#00d68f',
-        pointBorderColor: '#111128',
-        pointBorderWidth: 2,
-        pointRadius: 5,
-        pointHoverRadius: 7,
+        backgroundColor: colors.map(c => c + '66'),
+        borderColor: colors,
+        borderWidth: 2,
+        borderRadius: 8,
+        borderSkipped: false,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
+      indexAxis: 'y',
       scales: {
-        y: {
+        x: {
+          beginAtZero: true,
           ticks: {
             callback: (v) => 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0 })
           },
           grid: { color: 'rgba(255,255,255,0.04)' }
         },
-        x: {
-          grid: { display: false }
-        }
+        y: { grid: { display: false } }
       },
       plugins: {
         legend: { display: false },
         tooltip: {
-          callbacks: {
-            label: (ctx) => ` Saldo: ${formatCurrency(ctx.raw)}`
-          },
+          callbacks: { label: (ctx) => ` Saldo: ${formatCurrency(ctx.raw)}` },
           backgroundColor: 'rgba(17,17,40,0.95)',
           titleColor: '#eaeaf0',
           bodyColor: '#eaeaf0',

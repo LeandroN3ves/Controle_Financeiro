@@ -2,11 +2,9 @@
 // FinControl — Dashboard Logic
 // =============================================
 
-// ===== State =====
 let currentUser = null;
 let currentDate = new Date();
 let gastosData = [];
-let saldoData = null;
 
 // ===== DOM =====
 const pageLoader = document.getElementById('page-loader');
@@ -18,9 +16,6 @@ const nextMonthBtn = document.getElementById('next-month');
 const cardTotalGastos = document.getElementById('card-total-gastos');
 const cardTotalPago = document.getElementById('card-total-pago');
 const cardFaltaPagar = document.getElementById('card-falta-pagar');
-const cardSobra = document.getElementById('card-sobra');
-const saldoInput = document.getElementById('saldo-input');
-const saldoSaveBtn = document.getElementById('saldo-save-btn');
 
 // ===== Helpers =====
 function getMesRef(date) {
@@ -117,17 +112,6 @@ async function loadDashboard() {
 
   gastosData = gastos || [];
 
-  // Load saldo
-  const { data: saldo } = await supabaseClient
-    .from('saldo')
-    .select('*')
-    .eq('usuario_id', currentUser.id)
-    .eq('mes_ref', mesRef)
-    .single();
-
-  saldoData = saldo;
-  saldoInput.value = saldo ? saldo.valor_disponivel : '';
-
   // Update UI
   updateCards();
   renderGastosTable(gastosData);
@@ -143,74 +127,17 @@ function updateCards() {
   const totalGastos = gastosData.reduce((sum, g) => sum + Number(g.valor), 0);
   const totalPago = gastosData.filter(g => g.pago).reduce((sum, g) => sum + Number(g.valor), 0);
   const faltaPagar = totalGastos - totalPago;
-  const saldoAtual = saldoData ? Number(saldoData.valor_disponivel) : 0;
-  const sobra = saldoAtual - totalGastos;
 
   cardTotalGastos.textContent = formatCurrency(totalGastos);
   cardTotalPago.textContent = formatCurrency(totalPago);
   cardFaltaPagar.textContent = formatCurrency(faltaPagar);
-  cardSobra.textContent = formatCurrency(sobra);
-
-  // Dynamic color for Sobra
-  cardSobra.classList.remove('positive', 'negative');
-  cardSobra.classList.add(sobra >= 0 ? 'positive' : 'negative');
-}
-
-// ===== Save Saldo =====
-saldoSaveBtn.addEventListener('click', saveSaldo);
-saldoInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') saveSaldo();
-});
-
-async function saveSaldo() {
-  const valor = parseFloat(saldoInput.value);
-  if (isNaN(valor)) {
-    showToast('Insira um valor válido para o saldo', 'error');
-    return;
-  }
-
-  const mesRef = getMesRef(currentDate);
-
-  try {
-    if (saldoData) {
-      // Update existing
-      const { error } = await supabaseClient
-        .from('saldo')
-        .update({ valor_disponivel: valor, updated_at: new Date().toISOString() })
-        .eq('id', saldoData.id);
-      if (error) throw error;
-      saldoData.valor_disponivel = valor;
-    } else {
-      // Insert new
-      const { data, error } = await supabaseClient
-        .from('saldo')
-        .insert({
-          usuario_id: currentUser.id,
-          valor_disponivel: valor,
-          mes_ref: mesRef
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      saldoData = data;
-    }
-
-    updateCards();
-    showToast('Saldo atualizado!');
-
-    if (typeof updateAllCharts === 'function') {
-      updateAllCharts(gastosData, currentUser.id, currentDate);
-    }
-  } catch (err) {
-    console.error('Erro ao salvar saldo:', err);
-    showToast('Erro ao salvar saldo', 'error');
-  }
 }
 
 // ===== Init =====
 (async function init() {
   const session = await protectRoute();
   if (session) {
+    await loadCarteiras();
     await loadDashboard();
   }
   pageLoader.classList.add('hidden');

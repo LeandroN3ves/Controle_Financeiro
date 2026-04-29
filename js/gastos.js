@@ -17,6 +17,7 @@ const modalParcelasGroup = document.getElementById('modal-parcelas-group');
 const modalParcelaAtual = document.getElementById('modal-parcela-atual');
 const modalTotalParcelas = document.getElementById('modal-total-parcelas');
 const modalSubmitBtn = document.getElementById('modal-submit-btn');
+const modalCarteira = document.getElementById('modal-carteira');
 const addGastoBtn = document.getElementById('add-gasto-btn');
 const fabAddBtn = document.getElementById('fab-add-btn');
 const confirmOverlay = document.getElementById('confirm-overlay');
@@ -61,6 +62,10 @@ function openModal(gasto = null) {
       modalParcelaAtual.setAttribute('required', '');
       modalTotalParcelas.setAttribute('required', '');
     }
+    // Set carteira
+    if (gasto.carteira_id) {
+      modalCarteira.value = gasto.carteira_id;
+    }
   } else {
     // New mode
     modalTitle.textContent = 'Novo Gasto';
@@ -102,7 +107,8 @@ modalForm.addEventListener('submit', async (e) => {
     parcela_atual: modalTipo.value === 'parcelado' ? parseInt(modalParcelaAtual.value) : null,
     total_parcelas: modalTipo.value === 'parcelado' ? parseInt(modalTotalParcelas.value) : null,
     pago: false,
-    mes_ref: getMesRef(currentDate)
+    mes_ref: getMesRef(currentDate),
+    carteira_id: modalCarteira.value || null
   };
 
   try {
@@ -195,7 +201,7 @@ function renderGastosTable(gastos) {
   if (!gastos || gastos.length === 0) {
     gastosTbody.innerHTML = `
       <tr>
-        <td colspan="7">
+        <td colspan="8">
           <div class="empty-state">
             <span>📭</span>
             <p>Nenhum gasto registrado neste mês</p>
@@ -223,10 +229,17 @@ function renderGastosTable(gastos) {
 
     const vencFormatted = vencDate.toLocaleDateString('pt-BR');
 
+    // Carteira badge
+    const carteira = g.carteira_id ? getCarteiraById(g.carteira_id) : null;
+    const carteiraBadge = carteira
+      ? `<span class="wallet-badge"><span class="wallet-badge-dot" style="background:${carteira.cor}"></span>${escapeHtml(carteira.nome)}</span>`
+      : '<span style="color:var(--text-muted)">—</span>';
+
     return `
       <tr class="${rowClass}">
         <td><strong>${escapeHtml(g.nome)}</strong></td>
         <td>${formatCurrency(g.valor)}</td>
+        <td>${carteiraBadge}</td>
         <td>${vencFormatted}</td>
         <td>${g.tipo === 'fixo' ? 'Fixo' : 'Parcelado'}</td>
         <td>${parcelas}</td>

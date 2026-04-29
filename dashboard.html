@@ -35,7 +35,7 @@
     <!-- MAIN -->
     <main class="main-content">
       <!-- CARDS -->
-      <section class="cards-grid" id="cards-section">
+      <section class="cards-grid cards-grid-4" id="cards-section">
         <div class="card">
           <div class="card-icon">💸</div>
           <div class="card-label">Total de Gastos</div>
@@ -53,16 +53,22 @@
         </div>
         <div class="card">
           <div class="card-icon">🏦</div>
-          <div class="card-label">Saldo Atual</div>
-          <div class="saldo-edit">
-            <input type="number" class="saldo-input" id="saldo-input" step="0.01" placeholder="0,00" title="Digite seu saldo atual">
-            <button class="saldo-save-btn" id="saldo-save-btn" title="Salvar saldo">✓</button>
-          </div>
+          <div class="card-label">Saldo Total</div>
+          <div class="card-value" id="card-saldo-total">R$ 0,00</div>
         </div>
-        <div class="card">
-          <div class="card-icon">💚</div>
-          <div class="card-label">Sobra</div>
-          <div class="card-value" id="card-sobra">R$ 0,00</div>
+      </section>
+
+      <!-- CARTEIRAS -->
+      <section class="wallets-section">
+        <div class="section-header">
+          <h2 class="section-title">💳 Minhas Carteiras</h2>
+          <button class="btn btn-primary btn-sm" id="add-carteira-btn" style="width:auto;">+ Nova Carteira</button>
+        </div>
+        <div class="wallets-grid" id="wallets-grid">
+          <div class="empty-state" style="padding:30px;">
+            <span>💳</span>
+            <p>Nenhuma carteira cadastrada</p>
+          </div>
         </div>
       </section>
 
@@ -78,6 +84,7 @@
               <tr>
                 <th>Nome</th>
                 <th>Valor</th>
+                <th>Carteira</th>
                 <th>Vencimento</th>
                 <th>Tipo</th>
                 <th>Parcelas</th>
@@ -87,7 +94,7 @@
             </thead>
             <tbody id="gastos-tbody">
               <tr>
-                <td colspan="7">
+                <td colspan="8">
                   <div class="empty-state">
                     <span>📭</span>
                     <p>Nenhum gasto registrado neste mês</p>
@@ -102,7 +109,7 @@
       <!-- CHARTS -->
       <section class="charts-grid" id="charts-section">
         <div class="chart-card">
-          <h3>📊 Pago vs A Pagar</h3>
+          <h3>📊 Gastos por Carteira</h3>
           <div class="chart-wrapper">
             <canvas id="chart-rosca"></canvas>
           </div>
@@ -114,7 +121,7 @@
           </div>
         </div>
         <div class="chart-card">
-          <h3>📈 Evolução do Saldo</h3>
+          <h3>💰 Saldo por Carteira</h3>
           <div class="chart-wrapper">
             <canvas id="chart-linha"></canvas>
           </div>
@@ -157,6 +164,12 @@
           <label for="modal-total-parcelas" style="margin-top:12px;">Total de parcelas</label>
           <input type="number" id="modal-total-parcelas" min="1" placeholder="12">
         </div>
+        <div class="form-group">
+          <label for="modal-carteira">Carteira</label>
+          <select id="modal-carteira">
+            <option value="">Nenhuma</option>
+          </select>
+        </div>
         <button type="submit" class="btn btn-primary" id="modal-submit-btn">Salvar</button>
       </form>
     </div>
@@ -173,6 +186,44 @@
     </div>
   </div>
 
+  <!-- MODAL CARTEIRA -->
+  <div class="modal-overlay" id="carteira-modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="carteira-modal-title">Nova Carteira</h2>
+        <button class="modal-close" id="carteira-modal-close">✕</button>
+      </div>
+      <form id="carteira-modal-form">
+        <input type="hidden" id="carteira-modal-id">
+        <div class="form-group">
+          <label for="carteira-modal-nome">Nome da carteira</label>
+          <input type="text" id="carteira-modal-nome" placeholder="Ex: Nubank, Flash, PicPay" required>
+        </div>
+        <div class="form-group">
+          <label for="carteira-modal-saldo">Saldo (R$)</label>
+          <input type="number" id="carteira-modal-saldo" step="0.01" placeholder="0,00" required>
+        </div>
+        <div class="form-group">
+          <label>Cor</label>
+          <div class="color-picker" id="color-picker">
+            <button type="button" class="color-option" data-color="#7c5cff" style="background:#7c5cff"></button>
+            <button type="button" class="color-option" data-color="#00d68f" style="background:#00d68f"></button>
+            <button type="button" class="color-option" data-color="#ff4d6a" style="background:#ff4d6a"></button>
+            <button type="button" class="color-option" data-color="#ffaa00" style="background:#ffaa00"></button>
+            <button type="button" class="color-option" data-color="#3b82f6" style="background:#3b82f6"></button>
+            <button type="button" class="color-option" data-color="#f97316" style="background:#f97316"></button>
+            <button type="button" class="color-option" data-color="#ec4899" style="background:#ec4899"></button>
+            <button type="button" class="color-option" data-color="#14b8a6" style="background:#14b8a6"></button>
+            <button type="button" class="color-option" data-color="#a855f7" style="background:#a855f7"></button>
+            <button type="button" class="color-option" data-color="#84cc16" style="background:#84cc16"></button>
+          </div>
+          <input type="hidden" id="carteira-modal-cor" value="#7c5cff">
+        </div>
+        <button type="submit" class="btn btn-primary" id="carteira-modal-submit">Salvar</button>
+      </form>
+    </div>
+  </div>
+
   <!-- FAB -->
   <button class="fab" id="fab-add-btn" title="Adicionar gasto">+</button>
 
@@ -180,6 +231,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="supabase/client.js"></script>
   <script src="js/dashboard.js"></script>
+  <script src="js/carteiras.js"></script>
   <script src="js/gastos.js"></script>
   <script src="js/graficos.js"></script>
 </body>
